@@ -17,10 +17,25 @@
 
 ## 📖 Table of Contents
 
-- [What is RAAZI?](#-what-is-raazi)
+- [What is RAAZI?](#what-is-raazi)
 - [Live Demo](#-live-demo)
 - [Core Features](#-core-features)
-- [AI Engine — How It Works](#-ai-engine--how-it-works)
+- [Inside RAAZI: AI Reasoning and Investigation Algorithms](#-inside-raazi-ai-reasoning-and-investigation-algorithms)
+  - [1. How RAAZI Works as an AI Detective Assistant](#1-how-raazi-works-as-an-ai-detective-assistant)
+  - [2. Complete Investigation Workflow](#2-complete-investigation-workflow)
+  - [3. Algorithms Used in RAAZI](#3-algorithms-used-in-raazi)
+    - [3.1 Natural Language Processing and Gemini](#31-natural-language-processing-and-gemini)
+    - [3.2 Breadth-First Search (BFS)](#32-breadth-first-search-bfs)
+    - [3.3 Depth-First Search (DFS)](#33-depth-first-search-dfs)
+    - [3.4 Bayesian-Style Probability Updating — The Core Suspect Ranking Mechanism](#34-bayesian-style-probability-updating--the-core-suspect-ranking-mechanism)
+    - [3.5 Shannon Entropy — Measuring Investigation Uncertainty](#35-shannon-entropy--measuring-investigation-uncertainty)
+    - [3.6 Expected Information Gain — Deciding What to Investigate Next](#36-expected-information-gain--deciding-what-to-investigate-next)
+  - [4. How All Algorithms Work Together to Identify the Leading Suspect](#4-how-all-algorithms-work-together-to-identify-the-leading-suspect)
+  - [5. Where to Find the Bayesian Decision and Suspect Ranking on the RAAZI Website](#5-where-to-find-the-bayesian-decision-and-suspect-ranking-on-the-raazi-website)
+  - [6. Understanding the Difference Between a Leading Suspect and the Actual Culprit](#6-understanding-the-difference-between-a-leading-suspect-and-the-actual-culprit)
+  - [7. Implementation References](#7-implementation-references)
+  - [8. Future Scope](#8-future-scope)
+  - [Final Summary](#final-summary)
 - [Architecture Overview](#️-architecture-overview)
 - [Project Structure](#-project-structure)
 - [Data Flow & Workflows](#-data-flow--workflows)
@@ -32,8 +47,8 @@
 - [Type System](#-type-system)
 - [Environment Variables](#-environment-variables)
 - [Local Development](#-local-development)
-- [Deployment Guide](#-deployment-guide)
 - [Tech Stack](#-tech-stack)
+- [License](#-license)
 
 ---
 
@@ -75,82 +90,625 @@ live deployed application - https://raazi-ai-virtual-detective.ai.studio
 
 ---
 
-## 🧠 AI Engine — How It Works
+## 🔬 Inside RAAZI: AI Reasoning and Investigation Algorithms
 
-### 1. Bayesian Posterior Update
+### 1. How RAAZI Works as an AI Detective Assistant
 
-Each suspect starts with a **prior probability** assigned by Gemini. As clues are discovered, the posterior is recalculated using the full product of likelihoods:
+RAAZI is designed to simulate the reasoning process of a detective. Instead of simply generating conversational answers, it combines an AI-powered conversational assistant with a structured reasoning engine to investigate fictional mysteries.
 
-```
-P(Suspect_i | Clues) ∝ P(Suspect_i) × ∏ P(Clue_k | Suspect_i)
-```
+The system has two major responsibilities:
 
-Each `ClueNode` stores a `likelihoods` map `{ suspectId → float [0.08, 0.95] }` representing how strongly that evidence implicates each suspect. After every discovered clue, all posteriors are renormalized to sum to 1.
+1. **Conversational Intelligence:** Understands the investigator's messages, responds to questions, generates case-related explanations, and assists the user throughout the investigation.
+2. **Algorithmic Reasoning:** Examines evidence, explores relationships between clues, updates suspect probabilities, measures uncertainty, and recommends the next useful investigative question.
 
-**Code:** [`src/engine/aiAlgorithms.ts → recomputePosteriorFromEvidence()`](src/engine/aiAlgorithms.ts)
+The combination allows RAAZI to behave like an interactive detective assistant rather than a conventional question-answering chatbot.
 
----
+#### The Role of Gemini in RAAZI
 
-### 2. Shannon Entropy Decision Engine
+RAAZI uses Google's Gemini API for natural-language interaction and generative AI capabilities.
 
-The **Decision Engine** ranks candidate questions by **Expected Information Gain**:
+For example, an investigator might ask:
 
-```
-IG(Q) = H(S) − E[H(S | Q)]
-     = H(S) − [P(Q=yes) × H(S | Q=yes) + P(Q=no) × H(S | Q=no)]
-```
+> *"The gardener claims that he was in the kitchen during the incident. Can you check whether his statement makes sense?"*
 
-Where `H(S) = − Σ P(sᵢ) × log₂(P(sᵢ))` is the current Shannon entropy over suspect posteriors.
+The AI assistant helps interpret the message, understand the investigative context, and generate a relevant response.
 
-Each `CandidateQuestion` holds two likelihood maps — `positiveLikelihoods` and `negativeLikelihoods` — to simulate both outcomes. The question with the highest information gain (most entropy reduction) is surfaced first.
+Depending on the request, it can assist with:
 
-**Code:** [`src/engine/aiAlgorithms.ts → rankNextQuestions()`](src/engine/aiAlgorithms.ts)
+- Understanding natural-language questions.
+- Identifying suspects, clues, locations, and events mentioned by the investigator.
+- Explaining the significance of available evidence.
+- Generating conversational responses and investigation guidance.
+- Helping users explore possible connections between pieces of evidence.
+- Making the investigation more interactive and understandable.
 
----
-
-### 3. BFS / DFS Clue Graph Traversal
-
-Clues form a **connected undirected graph** via `connectedNodeIds`. The `traverseClueGraph()` function supports:
-
-- **BFS** — breadth-first, explores all clues at each distance layer first
-- **DFS** — depth-first (iterative stack), dives deep into one chain before backtracking
-
-The traversal outputs:
-- Ordered `steps[]` with depth and parent tracking
-- `edgesTraversed[]` for rendering the graph
-- `strongestSuspectLinks[]` — the highest-likelihood clue implicating each suspect
-
-**Code:** [`src/engine/aiAlgorithms.ts → traverseClueGraph()`](src/engine/aiAlgorithms.ts)
+> **An important distinction:** Gemini handles language understanding and generation. The dedicated reasoning engine performs the explicit graph traversal, probability calculations, uncertainty measurement, and question ranking. Gemini's conversational response should not be confused with a mathematically calculated suspect probability.
 
 ---
 
-### 4. NLP Intent Classification (Server-Side)
+### 2. Complete Investigation Workflow
 
-Every investigator message is sent to Gemini on the server via `/api/investigate/turn`. Gemini performs:
+The following workflow describes how the major components cooperate during an investigation:
 
-| Classification | What it detects |
-|---------------|-----------------|
-| `interrogate` | Questioning a suspect's alibi or motive |
-| `submit_clue` | Player submitting a physical field observation |
-| `analyze_connection` | Asking about links between evidence |
-| `request_hint` | Asking for investigative guidance |
-| `accuse` | A formal final accusation ("I accuse X") |
-| `general_query` | Explanation or summary request |
+```text
+                INVESTIGATOR
+                     │
+                     ▼
+             RAAZI USER INTERFACE
+                     │
+                     ▼
+          USER MESSAGE / CASE ACTION
+                     │
+                     ▼
+              GEMINI AI LAYER
+                     │
+           Understands the request
+           Interprets case context
+           Generates a response
+                     │
+                     ▼
+           STRUCTURED CASE DATA
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+          ▼                     ▼
+    CLUE GRAPH              SUSPECT DATA
+          │                     │
+          ▼                     ▼
+       BFS / DFS       BAYESIAN-STYLE UPDATE
+          │                     │
+          ▼                     ▼
+  EVIDENCE CONNECTIONS    SUSPECT SCORES
+                                │
+                                ▼
+                         SHANNON ENTROPY
+                                │
+                                ▼
+                       INFORMATION GAIN
+                                │
+                                ▼
+                     NEXT QUESTION RANKING
+                                │
+                                ▼
+                     UPDATED INVESTIGATION
+                                │
+                                ▼
+                       RAAZI RESPONSE
+                                │
+                                ▼
+                         INVESTIGATOR
+```
 
-A **deterministic regex layer** (`detectExplicitAccusation()`) runs in parallel as a fallback to catch accusation patterns that the AI might miss.
+#### Step-by-Step Workflow Explanation
+
+- **Step 1: Starting an investigation** — The user starts a fictional mystery. The case provides the narrative, suspects, evidence, and an underlying solution.
+- **Step 2: Interacting with the assistant** — The investigator asks questions, requests hints, examines evidence, or interrogates suspects through the interface.
+- **Step 3: AI interpretation** — Gemini helps understand the user's natural-language input and produces a contextually relevant response.
+- **Step 4: Evidence exploration** — The reasoning engine can traverse the clue graph using Breadth-First Search or Depth-First Search to explore relationships between evidence items.
+- **Step 5: Suspect probability calculation** — The Bayesian-style reasoning function evaluates evidence against suspect hypotheses and recomputes their scores.
+- **Step 6: Measuring uncertainty** — Shannon Entropy measures how uncertain the current suspect probability distribution is.
+- **Step 7: Selecting the next question** — Expected Information Gain helps rank candidate investigative questions according to how much uncertainty their answers are expected to remove.
+- **Step 8: Presenting the investigation results** — The application presents the relevant investigation information, including suspect rankings and evidence-related explanations.
+
+The investigator can continue collecting evidence, and the reasoning process can be repeated as the case develops.
 
 ---
 
-### 5. Oracle Hints
+### 3. Algorithms Used in RAAZI
 
-The Oracle generates contextual hints without calling Gemini, by combining:
+RAAZI combines several AI and algorithmic techniques. Each technique has a different responsibility:
 
-- Shannon entropy of current suspect distribution
-- BFS traversal to find the strongest suspect-to-clue link
-- Identification of unrevealed hidden clues and their connected parents
-- Information-gain–ranked next question from the Decision Engine
+| Algorithm / Technique | Purpose in RAAZI |
+| :--- | :--- |
+| **Natural Language Processing (Gemini)** | Understands user messages and supports conversational interaction. |
+| **Breadth-First Search (BFS)** | Explores connected evidence level by level. |
+| **Depth-First Search (DFS)** | Explores deeper paths in the clue graph. |
+| **Bayesian-Style Probability Updating** | Updates and ranks suspect hypotheses using evidence. |
+| **Shannon Entropy** | Measures uncertainty in the suspect distribution. |
+| **Expected Information Gain** | Ranks investigative questions by expected uncertainty reduction. |
 
-**Code:** [`src/engine/oracleHints.ts → generateOracleHint()`](src/engine/oracleHints.ts)
+---
+
+#### 3.1 Natural Language Processing and Gemini
+
+Natural Language Processing (NLP) enables computers to interpret and work with human language.
+
+In RAAZI, Gemini provides the conversational intelligence that allows investigators to interact naturally.
+
+For example:
+- **User:** *"The security guard says he left the building at 9 PM. Is there any evidence that contradicts this?"*
+- **RAAZI:** The assistant can interpret that the investigator wants to examine the security guard's statement and compare it with the available case evidence.
+
+The application can then use its structured investigation information to support the response.
+
+The basic process is:
+
+```text
+Natural-language input
+        │
+        ▼
+Gemini language interpretation
+        │
+        ▼
+Identify intent and relevant case context
+        │
+        ▼
+Application processes the request
+        │
+        ▼
+Reasoning engine accesses relevant data
+        │
+        ▼
+RAAZI generates an investigation response
+```
+
+**Why is Gemini important?**
+
+Without conversational AI, investigators would need to interact with the system using rigid commands. Gemini makes the interaction more natural and allows users to ask questions in their own words.
+
+However, Gemini is not the component that independently calculates the Bayesian posterior probabilities. Those calculations belong to the reasoning engine.
+
+---
+
+#### 3.2 Breadth-First Search (BFS)
+
+**Purpose:** To explore connected clues in a graph, starting with the closest relationships.
+
+Breadth-First Search is a graph traversal algorithm that explores nodes level by level.
+
+In RAAZI, an evidence graph can represent relationships between:
+- Clues
+- Suspects
+- Objects
+- Locations
+- Witness statements
+- Events
+
+For example, consider the following conceptual evidence graph:
+
+```text
+                 Broken Window
+                       │
+                  Found Near
+                       │
+                   Garden Tool
+                       │
+                Associated With
+                       │
+                    Gardener
+                       │
+                  Mentioned In
+                       │
+                  Witness Note
+```
+
+If the investigation begins at the Broken Window, BFS explores its immediate connections before moving further into the graph.
+
+**How BFS Works:**
+
+1. Start with a selected clue.
+2. Insert it into a queue.
+3. Mark it as visited.
+4. Remove the first node from the queue.
+5. Visit its unvisited neighbouring nodes.
+6. Add those nodes to the queue.
+7. Continue until the queue becomes empty or the search condition is satisfied.
+
+**Pseudocode:**
+
+```python
+def BFS(start):
+    queue = [start]
+    visited = {start}
+
+    while queue:
+        node = queue.pop(0)
+        process(node)
+
+        for neighbour in adjacent(node):
+            if neighbour not in visited:
+                visited.add(neighbour)
+                queue.append(neighbour)
+```
+
+**Why BFS is useful in RAAZI:**
+
+It helps explore nearby evidence relationships first. This is useful when an investigator wants to understand which clues are directly connected to a particular piece of evidence.
+
+**Complexity:**
+- **Time Complexity:** O(V + E)
+- **Space Complexity:** O(V)
+
+*(Where V = Number of vertices or nodes, E = Number of edges or relationships)*
+
+---
+
+#### 3.3 Depth-First Search (DFS)
+
+**Purpose:** To explore deeper evidence relationships by following one path before backtracking.
+
+Depth-First Search explores a graph by moving as far as possible along one branch before returning to explore other branches. Unlike BFS, which explores level by level, DFS focuses on depth.
+
+**How DFS Works:**
+
+1. Start from a selected clue.
+2. Mark the starting node as visited.
+3. Select an unvisited neighbouring node.
+4. Continue exploring deeper into the graph.
+5. If no unvisited neighbour exists, backtrack.
+6. Continue exploring other available branches.
+
+**Pseudocode:**
+
+```python
+def DFS(start):
+    stack = [start]
+    visited = set()
+
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            visited.add(node)
+            process(node)
+
+            for neighbour in adjacent(node):
+                if neighbour not in visited:
+                    stack.append(neighbour)
+```
+
+**Why DFS is useful in RAAZI:**
+
+Imagine a clue connects to an object, that object connects to a location, and that location connects to a witness statement. DFS can follow this chain deeply before returning to investigate another branch.
+
+**BFS vs DFS Comparison:**
+
+| Feature | BFS | DFS |
+| :--- | :--- | :--- |
+| **Exploration Style** | Explores level by level. | Explores one branch deeply. |
+| **Data Structure** | Queue (FIFO). | Stack (LIFO) or recursion. |
+| **Priority** | Prioritises nearby nodes. | Prioritises deeper paths. |
+| **Ideal Use Case** | Distance-oriented & immediate corroborated clues. | Exploring long causal chains & timelines. |
+| **Complexity** | Time: O(V + E), Space: O(V) | Time: O(V + E), Space: O(V) |
+
+*Both algorithms help explore the evidence graph. Neither algorithm independently determines which suspect is guilty.*
+
+---
+
+#### 3.4 Bayesian-Style Probability Updating — The Core Suspect Ranking Mechanism
+
+This is one of the most important reasoning techniques in RAAZI.
+
+Bayesian reasoning is based on updating the probability of a hypothesis when new evidence becomes available:
+
+- Each suspect represents a possible hypothesis (H_i).
+- Evidence provides information about those hypotheses (E).
+- The system updates suspect scores as evidence is considered.
+- The suspects are ranked according to their updated scores.
+
+For example, suppose a fictional case has three suspects:
+- Suspect A — The Gardener
+- Suspect B — The Security Guard
+- Suspect C — The Manager
+
+Initially, the system has some prior belief about each suspect. When new evidence appears, the system evaluates how compatible that evidence is with each suspect hypothesis.
+
+##### Bayes' Theorem
+
+The fundamental mathematical formula is:
+
+$$P(H \mid E) = \frac{P(E \mid H) \times P(H)}{P(E)}$$
+
+Where:
+
+| Symbol | Meaning |
+| :--- | :--- |
+| P(H) | Prior probability of a hypothesis. |
+| P(E) | Probability of observing the evidence. |
+| P(E \| H) | Likelihood of observing the evidence if the hypothesis is true. |
+| P(H \| E) | Posterior probability after considering the evidence. |
+
+##### How the Bayesian-Style Calculation Works in RAAZI
+
+The implementation uses a likelihood-product calculation. For a suspect hypothesis H_i and multiple evidence items E_1, E_2, ..., E_k:
+
+$$\text{Score}(H_i) = P(H_i) \times \prod_{j=1}^{k} P(E_j \mid H_i)$$
+
+The resulting scores are normalised so that the suspect probabilities sum to 1.0 (100%):
+
+$$P(H_i \mid E_{1..k}) = \frac{\text{Score}(H_i)}{\sum_m \text{Score}(H_m)}$$
+
+This approach assumes that evidence items are conditionally independent given the suspect hypothesis. It is a simplified Bayesian-style calculation running live in TypeScript.
+
+##### Numerical Example
+
+Suppose the initial suspect probabilities are:
+
+| Suspect | Prior Probability |
+| :--- | :---: |
+| **A (Gardener)** | 0.40 |
+| **B (Security Guard)** | 0.35 |
+| **C (Manager)** | 0.25 |
+
+Now, the investigator discovers a clue. The system estimates the likelihood of this evidence under each suspect hypothesis:
+
+| Suspect | Prior P(H) | Evidence Likelihood P(E \| H) | Unnormalised Score |
+| :--- | :---: | :---: | :---: |
+| **Suspect A** | 0.40 | 0.80 | 0.40 * 0.80 = **0.320** |
+| **Suspect B** | 0.35 | 0.20 | 0.35 * 0.20 = **0.070** |
+| **Suspect C** | 0.25 | 0.10 | 0.25 * 0.10 = **0.025** |
+| **Total Score** | | | **0.415** |
+
+Normalise each score by dividing by the total (0.415):
+
+| Suspect | Updated Posterior Probability |
+| :--- | :---: |
+| **Suspect A** | 0.320 / 0.415 ≈ **77.11%** |
+| **Suspect B** | 0.070 / 0.415 ≈ **16.87%** |
+| **Suspect C** | 0.025 / 0.415 ≈ **6.02%** |
+
+The result indicates that Suspect A is currently the leading hypothesis under the model.
+
+##### How Does This Help Identify the Culprit?
+
+As the investigator discovers more evidence, the reasoning engine recomputes the suspect scores.
+
+Evidence that is more compatible with one suspect increases that suspect's score relative to the others. Contradictory or less compatible evidence reduces a suspect's relative ranking.
+
+The system sorts the suspects using their updated posterior scores:
+- The highest-ranked suspect becomes the current **leading hypothesis**.
+- This is how RAAZI uses probabilistic reasoning to support the investigation.
+
+> **Important:** A probability ranking is not proof of guilt. The actual answer in a fictional case is determined by its underlying ground truth solution, while the probability ranking represents the reasoning engine's assessment from the available evidence.
+
+---
+
+#### 3.5 Shannon Entropy — Measuring Investigation Uncertainty
+
+After updating suspect probabilities, the system can measure how uncertain the current investigation remains.
+
+Shannon Entropy is an information-theory concept used to measure uncertainty in a probability distribution:
+
+$$H(S) = - \sum_{i=1}^n P(s_i) \log_2 P(s_i)$$
+
+Where:
+- H(S) = Entropy of the suspect distribution (in bits).
+- P(s_i) = Probability assigned to suspect i.
+- log_2 = Logarithm to base 2.
+
+##### Understanding Entropy Through an Investigation
+
+**Situation 1: High Uncertainty**
+- Suspect A: 34%, Suspect B: 33%, Suspect C: 33%
+- The probabilities are almost equal. The system cannot strongly distinguish between the suspects.
+- Therefore, **entropy is high** (~1.58 bits for 3 suspects).
+
+**Situation 2: Lower Uncertainty**
+- Suspect A: 90%, Suspect B: 7%, Suspect C: 3%
+- Most of the probability is concentrated around Suspect A. The current model has a much clearer leading hypothesis.
+- Therefore, **entropy is lower** (~0.57 bits).
+
+##### Why Does RAAZI Need Entropy?
+
+Entropy helps answer an essential investigative question:
+
+> *"How uncertain is the system about the current suspect ranking?"*
+
+- If uncertainty is **high**, the investigation benefits from collecting additional evidence.
+- If uncertainty is **low**, the current evidence strongly favours a particular hypothesis according to the model.
+
+*Entropy does not identify the culprit directly. It measures uncertainty in the current probability distribution.*
+
+---
+
+#### 3.6 Expected Information Gain — Deciding What to Investigate Next
+
+After measuring uncertainty, RAAZI uses **Information Gain** to prioritise useful investigative questions. Information Gain estimates how much a question is expected to reduce uncertainty:
+
+$$\text{IG}(Q) = H(S) - \mathbb{E}[H(S \mid Q)]$$
+
+Where:
+- IG(Q) = Expected Information Gain of question Q (in bits).
+- H(S) = Current entropy.
+- H(S \| Q) = Entropy after observing an answer to Q.
+- E = Expected value over possible answers (positive vs. negative likelihood branches).
+
+##### How It Works
+
+1. Calculate the current suspect probability distribution.
+2. Calculate its entropy H(S).
+3. Examine candidate investigative questions from the dossier.
+4. Estimate the possible answers to each question.
+5. Estimate how each answer would change suspect probabilities.
+6. Calculate the expected entropy after each question.
+7. Subtract expected entropy from current entropy: IG(Q) = H(S) - E[H(S \| Q)].
+8. Rank questions by their expected Information Gain.
+
+##### Example Question Ranking Table
+
+| Candidate Question | Expected Information Gain | Priority |
+| :--- | :---: | :---: |
+| **Check the gardener's alibi.** | **0.65 bits** | ⭐ Highest Priority (Rank 1) |
+| **Verify access to the storage room.** | **0.42 bits** | Moderate Priority (Rank 2) |
+| **Ask about an unrelated event.** | **0.08 bits** | Low Priority (Rank 3) |
+
+The first question has the highest expected Information Gain and is prioritised by the Decision Engine.
+
+**Why is Information Gain important?**
+
+A detective should not collect random information. The objective is to collect evidence that helps distinguish between possible explanations. Information Gain provides a mathematical way to prioritise questions that are expected to reduce uncertainty the fastest.
+
+---
+
+### 4. How All Algorithms Work Together to Identify the Leading Suspect
+
+The strength of RAAZI comes from combining these techniques instead of relying on a single algorithm:
+
+| Stage | Algorithm | Role |
+| :---: | :--- | :--- |
+| **1** | **Gemini / NLP** | Understands the investigator's message and extracts intent & entities. |
+| **2** | **BFS** | Explores nearby connected clues level by level. |
+| **3** | **DFS** | Explores deeper evidence relationships and causal chains. |
+| **4** | **Bayesian-style updating** | Updates the probabilities assigned to suspects as clues are uncovered. |
+| **5** | **Shannon Entropy** | Measures residual uncertainty in the suspect distribution. |
+| **6** | **Expected Information Gain** | Selects and ranks the next optimal investigative question. |
+| **7** | **Gemini** | Communicates the investigation findings naturally and atmospherically. |
+
+##### The Overall Reasoning Cycle
+
+```text
+NEW EVIDENCE DISCOVERED
+          │
+          ▼
+UNDERSTAND THE EVIDENCE
+          │
+          ▼
+EXPLORE RELATED CLUES
+       BFS / DFS
+          │
+          ▼
+UPDATE SUSPECT SCORES
+   BAYESIAN-STYLE REASONING
+          │
+          ▼
+MEASURE UNCERTAINTY
+    SHANNON ENTROPY
+          │
+          ▼
+RANK INVESTIGATIVE QUESTIONS
+    INFORMATION GAIN
+          │
+          ▼
+INVESTIGATOR COLLECTS MORE EVIDENCE
+          │
+          ▼
+REPEAT THE REASONING PROCESS
+          │
+          ▼
+CURRENT LEADING SUSPECT
+```
+
+The Bayesian-style update produces the suspect ranking. BFS and DFS explore evidence relationships, entropy measures uncertainty, and Information Gain determines what information to seek next.
+
+---
+
+### 5. Where to Find the Bayesian Decision and Suspect Ranking on the RAAZI Website
+
+#### Where to Look on the Website
+
+1. **Open the RAAZI application** in your browser: [raazi-ai-virtual-detective.ai.studio](https://raazi-ai-virtual-detective.ai.studio)
+2. Start or open a fictional investigation.
+3. Enter the investigation workspace (**Detective Chamber**).
+4. Locate the suspect analysis section by clicking **"Inspect AI Ledger"** (or the eye icon on the top toolbar).
+5. Open the **"Bayes" tab**:
+   - Inspect the suspects and their respective posterior scores (e.g., `77.11%`).
+   - Observe the **Δ from Prior** indicator (`+37.1%` in red for increased suspicion, `-18.1%` in green for exoneration).
+   - Click any suspect to expand their card and see individual evidence likelihoods P(E \| Suspect).
+6. Open the **"Clue Graph" tab** to see the interactive astrolabe visualization with **BFS** and **DFS** traversal orders.
+7. Open the **"Decision" tab** to see candidate inquiries ranked by **Information Gain** (with exact bits of entropy reduction).
+8. As you log new clues or ask questions, observe how the suspect ranking dynamically shifts.
+
+#### Where to Verify the Actual Calculation in the Source Code
+
+The primary implementation is in [`src/engine/aiAlgorithms.ts`](src/engine/aiAlgorithms.ts).
+
+Key functions to inspect:
+
+| Function | Responsibility |
+| :--- | :--- |
+| `recomputePosteriorFromEvidence()` | Recomputes suspect posterior scores using evidence likelihood products and normalisation. |
+| `calculateShannonEntropy()` | Computes Shannon entropy in bits over the suspect distribution. |
+| `rankNextQuestions()` | Ranks candidate questions by Expected Information Gain. |
+| `traverseClueGraph()` | Traverses the clue graph using iterative BFS (queue) or DFS (stack). |
+
+Additional references:
+- Mystery types & schemas: [`src/types/mystery.ts`](src/types/mystery.ts)
+- Server-side orchestration & Gemini API: [`server.ts`](server.ts)
+
+##### How to Inspect the Bayesian Calculation Yourself in VS Code
+
+1. Open the RAAZI repository in VS Code.
+2. Press `Ctrl + Shift + F` (or `Cmd + Shift + F` on macOS).
+3. Search for:
+   ```text
+   recomputePosteriorFromEvidence
+   ```
+4. Jump to the function definition in `src/engine/aiAlgorithms.ts`.
+5. Examine how it reads suspect information and evidence likelihoods.
+6. Follow how it calculates and normalises suspect scores.
+7. Trace where the resulting scores are returned to `server.ts` and `App.tsx`.
+
+> **Website versus source code:** The website displays the user-facing investigation results. The source code shows how those results are mathematically calculated.
+
+---
+
+### 6. Understanding the Difference Between a Leading Suspect and the Actual Culprit
+
+An important part of RAAZI's design is distinguishing between a model's prediction and the actual ground truth solution of a fictional mystery:
+
+- **Leading Suspect:** The hypothesis with the highest posterior score calculated from *currently discovered evidence*.
+- **Actual Culprit:** The true perpetrator established in the case dossier's hidden solution (`culpritId`).
+
+Early evidence may deliberately point toward an innocent party (a classic red herring). As deeper clues are discovered through BFS/DFS and high-information-gain questions, the posterior distribution shifts toward the true culprit.
+
+The hidden solution provides the objective ground truth against which the final accusation is evaluated.
+
+---
+
+### 7. Implementation References
+
+The following source files are the primary implementation references for RAAZI's reasoning architecture:
+
+| File | Purpose |
+| :--- | :--- |
+| [`server.ts`](server.ts) | Server-side application orchestration, Gemini API integration, and NLP parsing. |
+| [`src/engine/aiAlgorithms.ts`](src/engine/aiAlgorithms.ts) | Core investigation algorithms: Bayesian updates, Shannon entropy, BFS/DFS traversals, and Information Gain ranking. |
+| [`src/types/mystery.ts`](src/types/mystery.ts) | TypeScript interfaces and schemas for cases, clues, suspects, and decisions. |
+| [`src/engine/oracleHints.ts`](src/engine/oracleHints.ts) | Algorithmic hint synthesis based on clue proximity and entropy. |
+| [`src/components/AiLedgerDrawer.tsx`](src/components/AiLedgerDrawer.tsx) | Front-end UI displaying Bayesian rankings, interactive clue graph, and decision metrics. |
+| [`package.json`](package.json) | Project dependencies and execution scripts. |
+
+#### Core Reasoning Directory Structure
+
+```text
+RAAZI/
+├── server.ts                    # Express backend & Gemini API integration
+├── src/
+│    ├── engine/
+│    │    ├── aiAlgorithms.ts     # Bayesian posterior, Shannon entropy, BFS/DFS, Information Gain
+│    │    ├── oracleHints.ts      # Deterministic hint generator
+│    │    └── ambientAudio.ts     # Procedural Web Audio soundscapes
+│    ├── types/
+│    │    └── mystery.ts          # Mystery domain schemas
+│    └── components/
+│         ├── DetectiveChamber.tsx# Main investigation workspace
+│         └── AiLedgerDrawer.tsx  # Bayesian meters, SVG clue graph, Decision rankings
+```
+
+---
+
+### 8. Future Scope
+
+RAAZI can be extended with several advanced AI and reasoning capabilities:
+
+- **Full Bayesian Networks:** Model dependencies and conditional probabilities between interdependent clues instead of assuming conditional independence.
+- **Contradiction Detection:** Automatically detect logical conflicts between suspect statements, timelines, and physical evidence.
+- **Evidence Provenance:** Visually trace which specific pieces of evidence contributed to a suspect's probability increase or decrease.
+- **Explainable Probability Shifts:** Provide natural-language explanations of why a suspect's score changed after each discovery.
+- **Advanced Graph Visualisation:** Interactive multi-layered graphs showing relationships between suspects, clues, objects, and locations.
+- **Investigation Memory:** Preserve historical case dossiers and allow investigators to revisit and audit their deductive paths.
+- **A* Search Planning:** Explore heuristic investigation planning over clue state spaces.
+
+---
+
+### Final Summary
+
+RAAZI combines conversational AI with classical AI algorithms to create an interactive fictional detective assistant.
+
+Gemini makes the system conversational and helps investigators interact using natural language. BFS and DFS explore relationships between evidence items. Bayesian-style probability updating evaluates competing suspect hypotheses and produces a ranking. Shannon Entropy measures uncertainty in that ranking, while Expected Information Gain helps prioritise the next investigative question.
+
+The central idea is to make mystery-solving an iterative process: understand the evidence, explore its connections, update suspect probabilities, measure uncertainty, and decide what to investigate next.
+
+**RAAZI does not simply generate a detective story. It combines language interaction with structured evidence exploration and probabilistic reasoning to support an explainable investigation experience.**
 
 ---
 
