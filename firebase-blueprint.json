@@ -1,0 +1,309 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated detective investigator profile, campaign progress, and archive counters.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the investigator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Investigator full name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "solvedCount": {
+          "type": "integer",
+          "description": "Number of closed mysteries solved correctly."
+        },
+        "totalCases": {
+          "type": "integer",
+          "description": "Total number of investigations created or archived."
+        },
+        "unlockedStage": {
+          "type": "integer",
+          "description": "Highest unlocked campaign stage (1..4)."
+        },
+        "completedStageIds": {
+          "type": "array",
+          "description": "Bounded list of completed campaign stage IDs (up to 12)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was registered."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was last updated."
+        }
+      },
+      "required": ["uid", "displayName", "solvedCount", "totalCases", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII record containing investigator email.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "DetectiveCase": {
+      "title": "DetectiveCase",
+      "description": "A fictional mystery dossier with suspects, Bayesian priors/posteriors, and resolution state.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "era": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["Novice", "Adept", "Master"]
+        },
+        "synopsis": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 2400
+        },
+        "settingDetail": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 800
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "solved", "closed"]
+        },
+        "suspects": {
+          "type": "array",
+          "description": "Bounded list of up to 8 suspects with prior and current Bayesian posterior probabilities."
+        },
+        "culpritId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "solutionSummary": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 2000
+        },
+        "accusedSuspectId": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "solvedCorrectly": {
+          "type": "boolean"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 64
+        },
+        "stageOrder": {
+          "type": "integer"
+        },
+        "clueCount": {
+          "type": "integer"
+        },
+        "turnCount": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "title",
+        "era",
+        "difficulty",
+        "synopsis",
+        "settingDetail",
+        "status",
+        "suspects",
+        "culpritId",
+        "solutionSummary",
+        "clueCount",
+        "turnCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClueNode": {
+      "title": "ClueNode",
+      "description": "Evidence node in the investigation graph with Bayesian CPT likelihood weights and adjacency edges.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "caseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 140
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 1200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["physical", "testimony", "alibi", "cipher", "location"]
+        },
+        "source": {
+          "type": "string",
+          "enum": ["initial", "discovered", "user_submitted"]
+        },
+        "discovered": {
+          "type": "boolean"
+        },
+        "connectedNodeIds": {
+          "type": "array",
+          "description": "Bounded adjacency list of up to 12 connected clue or suspect node IDs."
+        },
+        "likelihoods": {
+          "type": "object",
+          "description": "Map of suspectId to Bayesian likelihood ratio P(E|Suspect)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "caseId",
+        "title",
+        "detail",
+        "category",
+        "source",
+        "discovered",
+        "connectedNodeIds",
+        "likelihoods",
+        "createdAt"
+      ]
+    },
+    "InvestigationTurn": {
+      "title": "InvestigationTurn",
+      "description": "An investigative dialogue turn with NLP intent metadata and Bayesian snapshot.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "caseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["investigator", "raazi"]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "nlpIntent": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "topSuspectName": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "topProbability": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "caseId", "role", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Publicly scoped investigator profile without PII."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Owner-only PII document storing verified investigator email."
+    },
+    "/cases/{caseId}": {
+      "schema": { "$ref": "#/entities/DetectiveCase" },
+      "description": "Owner-scoped mystery dossier documents."
+    },
+    "/cases/{caseId}/clues/{clueId}": {
+      "schema": { "$ref": "#/entities/ClueNode" },
+      "description": "Evidence nodes and graph adjacency edges belonging to a mystery case."
+    },
+    "/cases/{caseId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/InvestigationTurn" },
+      "description": "Chronological investigation dialogue and reasoning log belonging to a mystery case."
+    }
+  }
+}

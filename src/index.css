@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-obsidian: #0B0A09;
+  --color-surface: #141210;
+  --color-elevated: #1C1915;
+  --color-gold: #C9A45C;
+  --color-gold-muted: #8E7340;
+  --color-parchment: #E8DEC8;
+  --color-stone: #9C9281;
+  --color-crimson: #B54842;
+  --color-sage: #5C8D76;
+  --color-ochre: #D4943A;
+}
+
+@layer base {
+  html {
+    background-color: #0B0A09;
+    color: #E8DEC8;
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    letter-spacing: 0.01em;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-serif);
+    text-wrap: balance;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle obsidian scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0A09;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 164, 92, 0.22);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 164, 92, 0.42);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #1c1917 !important;
+  }
+
+  #raazi-app-shell {
+    display: none !important;
+  }
+}
+

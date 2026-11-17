@@ -1,0 +1,6 @@
+{
+  "name": "Raazi — AI Virtual Detective",
+  "description": "Minimalist ancient-aesthetic AI virtual detective assistant powered by Bayesian inference, BFS/DFS clue graphs, and natural language deduction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
