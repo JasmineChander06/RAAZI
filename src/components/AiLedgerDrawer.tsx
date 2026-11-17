@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, GitBranch, Scale, Sparkles, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, Scale, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type {
   ClueNode,
   DecisionRank,
@@ -7,6 +7,7 @@ import type {
   TraversalMode,
 } from '../types/mystery.ts';
 import { calculateShannonEntropy, traverseClueGraph } from '../engine/aiAlgorithms.ts';
+import { voiceEngine } from '../engine/voiceEngine.ts';
 
 type LedgerTab = 'bayes' | 'graph' | 'decision';
 
@@ -36,6 +37,22 @@ export function AiLedgerDrawer({
   const [activeTab, setActiveTab] = useState<LedgerTab>('bayes');
   const [traversalMode, setTraversalMode] = useState<TraversalMode>('BFS');
   const [expandedSuspectId, setExpandedSuspectId] = useState<string | null>(null);
+  const [speakingSuspectId, setSpeakingSuspectId] = useState<string | null>(null);
+
+  const handleToggleSuspectVoice = (suspect: Suspect, idx: number) => {
+    if (speakingSuspectId === suspect.id) {
+      voiceEngine.stop();
+      setSpeakingSuspectId(null);
+    } else {
+      setSpeakingSuspectId(suspect.id);
+      const profile = voiceEngine.getSuspectVoiceProfile(idx);
+      voiceEngine.speak(`${suspect.name}'s statement: ${suspect.alibi}. Regarding motive: ${suspect.motive}`, {
+        speakerId: suspect.id,
+        profile,
+        onEnd: () => setSpeakingSuspectId((curr) => (curr === suspect.id ? null : curr)),
+      });
+    }
+  };
 
   const discoveredClues = useMemo(() => clues.filter((c) => c.discovered), [clues]);
 
@@ -224,6 +241,36 @@ export function AiLedgerDrawer({
 
                     {isExpanded && (
                       <div className="pt-2 space-y-2 text-xs text-[#9C9281]">
+                        <div className="flex items-center justify-between gap-2 pb-1 border-b border-[#C9A45C]/10">
+                          <span className="text-[11px] font-mono text-[#C9A45C]">
+                            Tone: {voiceEngine.getSuspectVoiceProfile(idx).name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSuspectVoice(suspect, idx);
+                            }}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded border transition-colors cursor-pointer ${
+                              speakingSuspectId === suspect.id
+                                ? 'bg-[#B54842]/20 border-[#B54842] text-[#B54842]'
+                                : 'border-[#C9A45C]/25 text-[#C9A45C] hover:bg-[#C9A45C]/10'
+                            }`}
+                            title="Recite suspect testimony with character tone"
+                          >
+                            {speakingSuspectId === suspect.id ? (
+                              <>
+                                <VolumeX className="w-3 h-3 text-[#B54842]" />
+                                <span>Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3 h-3" />
+                                <span>Hear Testimony</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                         <p>
                           <span className="text-[#E8DEC8]">Motive:</span> {suspect.motive}
                         </p>
