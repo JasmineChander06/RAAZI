@@ -241,7 +241,16 @@ export function AiLedgerDrawer({
                                 key={clue.id}
                                 className="flex items-center justify-between gap-2"
                               >
-                                <span className="truncate">{clue.title}</span>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {clue.imageDataUrl && (
+                                    <img
+                                      src={clue.imageDataUrl}
+                                      alt=""
+                                      className="w-4 h-4 rounded object-cover border border-[#C9A45C]/20 shrink-0"
+                                    />
+                                  )}
+                                  <span className="truncate">{clue.title}</span>
+                                </div>
                                 <span className="font-mono tabular-nums text-[#E8DEC8]">
                                   {l.toFixed(2)}
                                 </span>
@@ -402,6 +411,13 @@ export function AiLedgerDrawer({
                         <span className="font-mono tabular-nums text-[#C9A45C]">
                           #{step.order}
                         </span>
+                        {clue.imageDataUrl && (
+                          <img
+                            src={clue.imageDataUrl}
+                            alt={clue.title}
+                            className="w-6 h-6 rounded object-cover border border-[#C9A45C]/25 shrink-0"
+                          />
+                        )}
                         <span className="text-[#E8DEC8] truncate">{clue.title}</span>
                       </div>
                       <span className="font-mono tabular-nums text-[11px] text-[#9C9281] shrink-0">

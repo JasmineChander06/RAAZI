@@ -27,6 +27,7 @@ export interface ClueNode {
   discovered: boolean;
   connectedNodeIds: string[];
   likelihoods: Record<string, number>;
+  imageDataUrl?: string;
   createdAt?: unknown;
 }
 

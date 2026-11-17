@@ -222,6 +222,7 @@ export async function saveNewCaseToFirestore(
         discovered: Boolean(clue.discovered),
         connectedNodeIds: clue.connectedNodeIds.slice(0, 12).map(sanitizeId),
         likelihoods: clue.likelihoods,
+        ...(clue.imageDataUrl ? { imageDataUrl: clue.imageDataUrl } : {}),
         createdAt: serverTimestamp(),
       });
     }
@@ -305,6 +306,7 @@ export async function persistInvestigationStep(params: {
         discovered: true,
         connectedNodeIds: newClue.connectedNodeIds.slice(0, 12).map(sanitizeId),
         likelihoods: newClue.likelihoods,
+        ...(newClue.imageDataUrl ? { imageDataUrl: newClue.imageDataUrl } : {}),
         createdAt: serverTimestamp(),
       });
     }

@@ -10,6 +10,7 @@ import type {
 } from '../types/mystery.ts';
 import type { AmbientSoundscape } from '../engine/ambientAudio.ts';
 import { AmbientSoundControl } from './AmbientSoundControl.tsx';
+import { ImageClueUploader } from './ImageClueUploader.tsx';
 
 interface DetectiveChamberProps {
   activeCase: DetectiveCase;
@@ -41,6 +42,7 @@ interface DetectiveChamberProps {
     clueTitle?: string;
     clueCategory?: ClueCategory;
     askedQuestionId?: string;
+    imageDataUrl?: string;
   }) => Promise<void>;
 }
 
@@ -72,7 +74,7 @@ export function DetectiveChamber({
   onChangeSoundscape,
   onSubmitTurn,
 }: DetectiveChamberProps) {
-  const [composerMode, setComposerMode] = useState<'query' | 'clue'>('query');
+  const [composerMode, setComposerMode] = useState<'query' | 'clue' | 'image'>('query');
   const [queryText, setQueryText] = useState('');
   const [clueTitle, setClueTitle] = useState('');
   const [clueCategory, setClueCategory] = useState<ClueCategory>('physical');
@@ -125,6 +127,22 @@ export function DetectiveChamber({
   const topSuspect = activeCase.suspects[0];
   const topDecision = rankedDecisions[0];
   const isSolved = activeCase.status !== 'active';
+
+  const handleImageClueAnalyzed = async (analysis: {
+    title: string;
+    detail: string;
+    category: ClueCategory;
+    imageDataUrl: string;
+  }) => {
+    setComposerMode('query');
+    await onSubmitTurn({
+      userInput: `${analysis.detail} [Photographic evidence submitted: ${analysis.title}]`,
+      mode: 'clue',
+      clueTitle: analysis.title,
+      clueCategory: analysis.category,
+      imageDataUrl: analysis.imageDataUrl,
+    });
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -554,11 +572,24 @@ export function DetectiveChamber({
                 >
                   Submit New Clue
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerMode('image')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
+                    composerMode === 'image'
+                      ? 'bg-[#1C1915] text-[#C9A45C]'
+                      : 'text-[#9C9281] hover:text-[#E8DEC8]'
+                  }`}
+                >
+                  📎 Photo Clue
+                </button>
               </div>
 
               <span className="text-[11px] text-[#9C9281]">
                 {composerMode === 'query'
                   ? 'Press Enter to send · Type "I accuse [Name]" to solve stage'
+                  : composerMode === 'image'
+                  ? 'Upload a photo or sketch — Gemini will analyze it as evidence'
                   : 'Enter clue title, category, and observation'}
               </span>
             </div>
@@ -596,6 +627,15 @@ export function DetectiveChamber({
               </div>
             )}
 
+            {composerMode === 'image' && (
+              <ImageClueUploader
+                activeCase={activeCase}
+                isBusy={isBusy}
+                onImageClueAnalyzed={(analysis) => void handleImageClueAnalyzed(analysis)}
+                onCancel={() => setComposerMode('query')}
+              />
+            )}
+
             {composerMode === 'clue' && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <input
@@ -620,36 +660,38 @@ export function DetectiveChamber({
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <textarea
-                rows={2}
-                value={queryText}
-                onChange={(e) => setQueryText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!isBusy && queryText.trim()) {
-                      void handleFormSubmit(e);
+            {composerMode !== 'image' && (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <textarea
+                  rows={2}
+                  value={queryText}
+                  onChange={(e) => setQueryText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!isBusy && queryText.trim()) {
+                        void handleFormSubmit(e);
+                      }
                     }
+                  }}
+                  placeholder={
+                    composerMode === 'clue'
+                      ? 'Describe the clue or contradiction you discovered so Raazi can update Bayesian suspect weights...'
+                      : 'Ask Raazi to interrogate a suspect, examine a contradiction, or explain clue connections...'
                   }
-                }}
-                placeholder={
-                  composerMode === 'clue'
-                    ? 'Describe the clue or contradiction you discovered so Raazi can update Bayesian suspect weights...'
-                    : 'Ask Raazi to interrogate a suspect, examine a contradiction, or explain clue connections...'
-                }
-                maxLength={1200}
-                className="flex-1 bg-[#0B0A09] border border-[#C9A45C]/20 rounded-md px-3.5 py-2.5 text-sm text-[#E8DEC8] placeholder:text-[#9C9281]/60 focus:outline-none focus:border-[#C9A45C] resize-y"
-              />
-              <button
-                type="submit"
-                disabled={isBusy || !queryText.trim()}
-                className="px-5 py-2.5 text-sm font-semibold bg-[#C9A45C] text-[#0B0A09] rounded-md hover:bg-[#d8b671] transition-colors flex items-center justify-center gap-2 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 self-end sm:self-stretch"
-              >
-                <Send className="w-4 h-4" />
-                <span>{composerMode === 'clue' ? 'Log Clue' : 'Inquire'}</span>
-              </button>
-            </div>
+                  maxLength={1200}
+                  className="flex-1 bg-[#0B0A09] border border-[#C9A45C]/20 rounded-md px-3.5 py-2.5 text-sm text-[#E8DEC8] placeholder:text-[#9C9281]/60 focus:outline-none focus:border-[#C9A45C] resize-y"
+                />
+                <button
+                  type="submit"
+                  disabled={isBusy || !queryText.trim()}
+                  className="px-5 py-2.5 text-sm font-semibold bg-[#C9A45C] text-[#0B0A09] rounded-md hover:bg-[#d8b671] transition-colors flex items-center justify-center gap-2 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 self-end sm:self-stretch"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{composerMode === 'clue' ? 'Log Clue' : 'Inquire'}</span>
+                </button>
+              </div>
+            )}
           </form>
         </section>
       )}

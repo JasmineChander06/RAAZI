@@ -432,6 +432,7 @@ app.post('/api/investigate/turn', async (req, res) => {
       clueTitle?: string;
       clueCategory?: ClueCategory;
       askedQuestionId?: string;
+      imageDataUrl?: string;
     };
 
     const { caseData, clues, messages, userInput, mode = 'query', clueTitle, clueCategory, askedQuestionId } = body;
@@ -583,6 +584,7 @@ Instructions:
         discovered: true,
         connectedNodeIds,
         likelihoods: likelihoodMap,
+        ...(body.imageDataUrl ? { imageDataUrl: body.imageDataUrl } : {}),
       };
       updatedClues.push({
         ...discoveredClue,
@@ -667,6 +669,108 @@ Instructions:
     });
   } catch (error) {
     console.error('Error processing investigation turn:', error);
+    res.status(500).json({ error: formatGeminiErrorMessage(error) });
+  }
+});
+
+app.post('/api/clue/analyze-image', async (req, res) => {
+  try {
+    const body = req.body as {
+      imageBase64?: string;
+      mimeType?: string;
+      caseData?: DetectiveCase;
+    };
+
+    const { imageBase64, mimeType, caseData } = body;
+
+    if (!imageBase64 || !caseData) {
+      res.status(400).json({ error: 'imageBase64 and caseData are required.' });
+      return;
+    }
+
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const safeMime = allowedMimes.includes(mimeType ?? '') ? (mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif') : 'image/jpeg';
+
+    if (imageBase64.length > 6_900_000) {
+      res.status(413).json({ error: 'Image too large. Please upload an image under 5 MB.' });
+      return;
+    }
+
+    const ai = getGeminiClient();
+
+    const suspectList = caseData.suspects
+      .map((s, i) => `${i}: ${s.name} (${s.role})`)
+      .join(', ');
+
+    const analysisPrompt = `You are Raazi, an AI detective. The investigator has photographed a crime-scene item or document.
+
+Case: "${caseData.title}" (${caseData.era})
+Synopsis: ${caseData.synopsis}
+Suspects (index-ordered): ${suspectList}
+
+Analyze the image carefully and return a JSON clue analysis.
+- title: short clue name under 80 characters
+- detail: a 2-3 sentence forensic observation of what the image shows and its investigative significance
+- category: one of exactly: physical | testimony | alibi | cipher | location
+- likelihoods: array of exactly ${caseData.suspects.length} floats between 0.08 and 0.95, one per suspect in order, representing P(this image evidence | suspect is culprit)`;
+
+    const response = await ai.models.generateContent({
+      model: PRIMARY_MODEL,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: safeMime,
+                data: imageBase64,
+              },
+            },
+            { text: analysisPrompt },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction: 'You are Raazi, an AI detective. Analyze images as crime-scene evidence. Return only valid JSON.',
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            detail: { type: Type.STRING },
+            category: { type: Type.STRING },
+            likelihoods: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+          },
+          required: ['title', 'detail', 'category', 'likelihoods'],
+        },
+      },
+    });
+
+    const parsed = parseJsonSafe<{
+      title: string;
+      detail: string;
+      category: string;
+      likelihoods: number[];
+    }>(response.text);
+
+    const validCategories = new Set<ClueCategory>(['physical', 'testimony', 'alibi', 'cipher', 'location']);
+    const safeCategory: ClueCategory = validCategories.has(parsed.category as ClueCategory)
+      ? (parsed.category as ClueCategory)
+      : 'physical';
+
+    const safeLikelihoods = caseData.suspects.map((_, idx) => {
+      const v = parsed.likelihoods?.[idx];
+      return typeof v === 'number' && Number.isFinite(v) ? Math.min(Math.max(v, 0.08), 0.95) : 0.5;
+    });
+
+    res.json({
+      title: (parsed.title || 'Photographic Evidence').slice(0, 80),
+      detail: (parsed.detail || 'An image was submitted as evidence.').slice(0, 1200),
+      category: safeCategory,
+      likelihoods: safeLikelihoods,
+    });
+  } catch (error) {
+    console.error('Error analyzing clue image:', error);
     res.status(500).json({ error: formatGeminiErrorMessage(error) });
   }
 });

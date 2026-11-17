@@ -340,6 +340,7 @@ function RaaziWorkspace() {
     clueTitle?: string;
     clueCategory?: ClueCategory;
     askedQuestionId?: string;
+    imageDataUrl?: string;
   }) => {
     setIsBusy(true);
     setErrorMessage(null);
